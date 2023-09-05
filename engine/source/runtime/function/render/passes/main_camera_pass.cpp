@@ -275,14 +275,11 @@ namespace Piccolo
         * Deferred lighting
         */
         RHIAttachmentReference deferred_lighting_pass_input_attachments_reference[4] = {};
-        deferred_lighting_pass_input_attachments_reference[0].attachment =
-            &gbuffer_normal_attachment_description - attachments;
+        deferred_lighting_pass_input_attachments_reference[0].attachment = &gbuffer_normal_attachment_description - attachments;
         deferred_lighting_pass_input_attachments_reference[0].layout = RHI_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        deferred_lighting_pass_input_attachments_reference[1].attachment =
-            &gbuffer_metallic_roughness_shadingmodeid_attachment_description - attachments;
+        deferred_lighting_pass_input_attachments_reference[1].attachment = &gbuffer_metallic_roughness_shadingmodeid_attachment_description - attachments;
         deferred_lighting_pass_input_attachments_reference[1].layout = RHI_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        deferred_lighting_pass_input_attachments_reference[2].attachment =
-            &gbuffer_albedo_attachment_description - attachments;
+        deferred_lighting_pass_input_attachments_reference[2].attachment = &gbuffer_albedo_attachment_description - attachments;
         deferred_lighting_pass_input_attachments_reference[2].layout     = RHI_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         deferred_lighting_pass_input_attachments_reference[3].attachment = &depth_attachment_description - attachments;
         deferred_lighting_pass_input_attachments_reference[3].layout     = RHI_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -436,13 +433,38 @@ namespace Piccolo
         fxaa_pass.pPreserveAttachments    = NULL;
 
         /*
+         * Toon
+         */
+        RHIAttachmentReference toon_pass_input_attachment_reference[2] = {};
+        toon_pass_input_attachment_reference[0].attachment = &backup_even_color_attachment_description - attachments;
+        toon_pass_input_attachment_reference[0].layout     = RHI_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        toon_pass_input_attachment_reference[1].attachment = &depth_attachment_description - attachments;
+        toon_pass_input_attachment_reference[1].layout     = RHI_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        RHIAttachmentReference toon_pass_color_attachment_reference {};
+        toon_pass_color_attachment_reference.attachment = &backup_odd_color_attachment_description - attachments;
+        //toon_pass_color_attachment_reference.layout     = RHI_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        toon_pass_color_attachment_reference.layout     = RHI_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        RHISubpassDescription& toon_pass = subpasses[_main_camera_subpass_toon];
+        toon_pass.pipelineBindPoint      = RHI_PIPELINE_BIND_POINT_GRAPHICS;
+        toon_pass.inputAttachmentCount =
+            sizeof(toon_pass_input_attachment_reference) / sizeof(toon_pass_input_attachment_reference[0]);
+        toon_pass.pInputAttachments       = &toon_pass_input_attachment_reference[0];
+        toon_pass.colorAttachmentCount    = 1;
+        toon_pass.pColorAttachments       = &toon_pass_color_attachment_reference;
+        toon_pass.pDepthStencilAttachment = NULL;
+        toon_pass.preserveAttachmentCount = 0;
+        toon_pass.pPreserveAttachments    = NULL;
+
+        /*
         *  UI
         */
         RHIAttachmentReference ui_pass_color_attachment_reference {};
-        ui_pass_color_attachment_reference.attachment = &backup_odd_color_attachment_description - attachments;
+        ui_pass_color_attachment_reference.attachment = &backup_even_color_attachment_description - attachments;
         ui_pass_color_attachment_reference.layout     = RHI_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-        uint32_t ui_pass_preserve_attachment = &backup_even_color_attachment_description - attachments;
+        uint32_t ui_pass_preserve_attachment = &backup_odd_color_attachment_description - attachments;
 
         RHISubpassDescription& ui_pass  = subpasses[_main_camera_subpass_ui];
         ui_pass.pipelineBindPoint       = RHI_PIPELINE_BIND_POINT_GRAPHICS;
@@ -482,7 +504,7 @@ namespace Piccolo
         * Create dependencies
         */
 
-        RHISubpassDependency dependencies[9] = {};
+        RHISubpassDependency dependencies[10] = {};
 
         RHISubpassDependency& deferred_lighting_pass_depend_on_shadow_map_pass = dependencies[0];
         deferred_lighting_pass_depend_on_shadow_map_pass.srcSubpass           = RHI_SUBPASS_EXTERNAL;
@@ -569,19 +591,32 @@ namespace Piccolo
             RHI_ACCESS_SHADER_WRITE_BIT | RHI_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
         fxaa_pass_depend_on_vignette_pass.dstAccessMask =
             RHI_ACCESS_SHADER_READ_BIT | RHI_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        fxaa_pass_depend_on_vignette_pass.dependencyFlags = RHI_DEPENDENCY_BY_REGION_BIT;
 
-        RHISubpassDependency& ui_pass_depend_on_fxaa_pass = dependencies[7];
-        ui_pass_depend_on_fxaa_pass.srcSubpass           = _main_camera_subpass_fxaa;
-        ui_pass_depend_on_fxaa_pass.dstSubpass           = _main_camera_subpass_ui;
-        ui_pass_depend_on_fxaa_pass.srcStageMask =
+        RHISubpassDependency& toon_pass_depend_on_fxaa_pass = dependencies[7];
+        toon_pass_depend_on_fxaa_pass.srcSubpass            = _main_camera_subpass_fxaa;
+        toon_pass_depend_on_fxaa_pass.dstSubpass            = _main_camera_subpass_toon;
+        toon_pass_depend_on_fxaa_pass.srcStageMask =
             RHI_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | RHI_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        ui_pass_depend_on_fxaa_pass.dstStageMask =
+        toon_pass_depend_on_fxaa_pass.dstStageMask =
             RHI_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | RHI_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        ui_pass_depend_on_fxaa_pass.srcAccessMask   = RHI_ACCESS_SHADER_WRITE_BIT | RHI_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        ui_pass_depend_on_fxaa_pass.dstAccessMask   = RHI_ACCESS_SHADER_READ_BIT | RHI_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-        ui_pass_depend_on_fxaa_pass.dependencyFlags = RHI_DEPENDENCY_BY_REGION_BIT;
+        toon_pass_depend_on_fxaa_pass.srcAccessMask =
+            RHI_ACCESS_SHADER_WRITE_BIT | RHI_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        toon_pass_depend_on_fxaa_pass.dstAccessMask =
+            RHI_ACCESS_SHADER_READ_BIT | RHI_ACCESS_COLOR_ATTACHMENT_READ_BIT;
 
-        RHISubpassDependency& combine_ui_pass_depend_on_ui_pass = dependencies[8];
+        RHISubpassDependency& ui_pass_depend_on_toon_pass = dependencies[8];
+        ui_pass_depend_on_toon_pass.srcSubpass            = _main_camera_subpass_toon;
+        ui_pass_depend_on_toon_pass.dstSubpass            = _main_camera_subpass_ui;
+        ui_pass_depend_on_toon_pass.srcStageMask =
+            RHI_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | RHI_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        ui_pass_depend_on_toon_pass.dstStageMask =
+            RHI_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | RHI_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        ui_pass_depend_on_toon_pass.srcAccessMask = RHI_ACCESS_SHADER_WRITE_BIT | RHI_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        ui_pass_depend_on_toon_pass.dstAccessMask = RHI_ACCESS_SHADER_READ_BIT | RHI_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        ui_pass_depend_on_toon_pass.dependencyFlags = RHI_DEPENDENCY_BY_REGION_BIT;
+
+        RHISubpassDependency& combine_ui_pass_depend_on_ui_pass = dependencies[9];
         combine_ui_pass_depend_on_ui_pass.srcSubpass           = _main_camera_subpass_ui;
         combine_ui_pass_depend_on_ui_pass.dstSubpass           = _main_camera_subpass_combine_ui;
         combine_ui_pass_depend_on_ui_pass.srcStageMask =
@@ -1034,6 +1069,7 @@ namespace Piccolo
         }
 
         // deferred lighting
+        {}
         {
             RHIDescriptorSetLayout*      descriptorset_layouts[3] = {m_descriptor_infos[_mesh_global].layout,
                                                               m_descriptor_infos[_deferred_lighting].layout,
@@ -1175,6 +1211,7 @@ namespace Piccolo
         }
 
         // mesh lighting
+        {}
         {
             RHIDescriptorSetLayout*      descriptorset_layouts[3] = {m_descriptor_infos[_mesh_global].layout,
                                                                      m_descriptor_infos[_per_mesh].layout,
@@ -1314,6 +1351,7 @@ namespace Piccolo
         }
 
         // skybox
+        {}
         {
             RHIDescriptorSetLayout*      descriptorset_layouts[1] = {m_descriptor_infos[_skybox].layout};
             RHIPipelineLayoutCreateInfo pipeline_layout_create_info {};
@@ -1451,6 +1489,7 @@ namespace Piccolo
         }
 
         // draw axis
+        {}
         {
             RHIDescriptorSetLayout*     descriptorset_layouts[1] = {m_descriptor_infos[_axis].layout};
             RHIPipelineLayoutCreateInfo pipeline_layout_create_info {};
@@ -1589,6 +1628,7 @@ namespace Piccolo
 
     void MainCameraPass::setupDescriptorSet()
     {
+        //Alloc and Update
         setupModelGlobalDescriptorSet();
         setupSkyboxDescriptorSet();
         setupAxisDescriptorSet();
@@ -1985,6 +2025,7 @@ namespace Piccolo
 
     void MainCameraPass::draw(ColorGradingPass& color_grading_pass,
                               VignettePass&     vignette_pass,
+                              ToonPass&         toon_pass,
                               FXAAPass&         fxaa_pass,
                               ToneMappingPass&  tone_mapping_pass,
                               UIPass&           ui_pass,
@@ -2057,6 +2098,10 @@ namespace Piccolo
             fxaa_pass.draw();
 
         m_rhi->cmdNextSubpassPFN(m_rhi->getCurrentCommandBuffer(), RHI_SUBPASS_CONTENTS_INLINE);
+     
+        toon_pass.draw();
+
+        m_rhi->cmdNextSubpassPFN(m_rhi->getCurrentCommandBuffer(), RHI_SUBPASS_CONTENTS_INLINE);
 
         RHIClearAttachment clear_attachments[1];
         clear_attachments[0].aspectMask                  = RHI_IMAGE_ASPECT_COLOR_BIT;
@@ -2091,6 +2136,7 @@ namespace Piccolo
 
     void MainCameraPass::drawForward(ColorGradingPass& color_grading_pass,
                                      VignettePass&     vignette_pass,
+                                     ToonPass&         toon_pass,
                                      FXAAPass&         fxaa_pass,
                                      ToneMappingPass&  tone_mapping_pass,
                                      UIPass&           ui_pass,
@@ -2149,6 +2195,10 @@ namespace Piccolo
 
         if (m_enable_fxaa)
             fxaa_pass.draw();
+
+        m_rhi->cmdNextSubpassPFN(m_rhi->getCurrentCommandBuffer(), RHI_SUBPASS_CONTENTS_INLINE);
+
+        toon_pass.draw();
 
         m_rhi->cmdNextSubpassPFN(m_rhi->getCurrentCommandBuffer(), RHI_SUBPASS_CONTENTS_INLINE);
 

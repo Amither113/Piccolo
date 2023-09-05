@@ -1,41 +1,95 @@
-#include "runtime/function/render/passes/vignette_pass.h"
+#include "runtime/function/render/passes/toon_pass.h"
 
 #include "runtime/core/base/macro.h"
 
 #include "runtime/function/render/interface/vulkan/vulkan_rhi.h"
 #include "runtime/function/render/interface/vulkan/vulkan_util.h"
 
-#include <vignette_frag.h>
-#include <vignette_vert.h>
+#include <toon_frag.h>
+#include <toon_vert.h>
 
 #include <stdexcept>
 
 namespace Piccolo
 {
-    void VignettePass::initialize(const RenderPassInitInfo* init_info)
+    void ToonPass::initialize(const RenderPassInitInfo* init_info)
     {
         RenderPass::initialize(nullptr);
 
-        const VignettePassInitInfo* _init_info = static_cast<const VignettePassInitInfo*>(init_info);
+        const ToonPassInitInfo* _init_info = static_cast<const ToonPassInitInfo*>(init_info);
         m_framebuffer.render_pass                  = _init_info->render_pass;
 
+        prepareUniformBuffer();
         setupDescriptorSetLayout();
         setupPipelines();
         setupDescriptorSet();
         updateAfterFramebufferRecreate(_init_info->input_attachment);
     }
 
-    void VignettePass::setupDescriptorSetLayout()
+    void ToonPass::prepareUniformBuffer() 
+    {
+        // create gpu memory
+        RHIDeviceMemory* d_uniformdmemory;
+
+        m_rhi->createBufferAndInitialize(RHI_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                                         RHI_MEMORY_PROPERTY_HOST_VISIBLE_BIT | RHI_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                                         m_compute_uniform_buffer,
+                                         d_uniformdmemory,
+                                         sizeof(m_ubo));
+
+        // map to cpu memory
+        if (RHI_SUCCESS != m_rhi->mapMemory(d_uniformdmemory, 0, RHI_WHOLE_SIZE, 0, &m_particle_compute_buffer_mapped))
+        {
+            throw std::runtime_error("map buffer");
+        }
+
+        //upload data
+        m_viewport_params = *m_rhi->getSwapchainInfo().viewport;
+        m_ubo.viewport.x  = m_viewport_params.x;
+        m_ubo.viewport.y  = m_viewport_params.y;
+        m_ubo.viewport.z  = m_viewport_params.width;
+        m_ubo.viewport.w  = m_viewport_params.height;
+
+        memcpy(m_particle_compute_buffer_mapped, &m_ubo, sizeof(m_ubo));
+    }
+
+    void ToonPass::updateUniformBuffer() 
+    {
+        m_ubo.viewport.x = m_rhi->getSwapchainInfo().viewport->x;
+        m_ubo.viewport.y = m_rhi->getSwapchainInfo().viewport->y;
+        m_ubo.viewport.z = m_rhi->getSwapchainInfo().viewport->width;
+        m_ubo.viewport.w = m_rhi->getSwapchainInfo().viewport->height;
+        memcpy(m_particle_compute_buffer_mapped, &m_ubo, sizeof(m_ubo));
+    }
+
+    void ToonPass::preparePassData(std::shared_ptr<RenderResourceBase> render_resource) 
+    { 
+        updateUniformBuffer();
+    }
+
+    void ToonPass::setupDescriptorSetLayout()
     {
         m_descriptor_infos.resize(1);
 
-        RHIDescriptorSetLayoutBinding post_process_global_layout_bindings[1] = {};
+        RHIDescriptorSetLayoutBinding post_process_global_layout_bindings[3] = {};
 
-        RHIDescriptorSetLayoutBinding& post_process_global_layout_input_attachment_binding = post_process_global_layout_bindings[0];
-        post_process_global_layout_input_attachment_binding.binding         = 0;
-        post_process_global_layout_input_attachment_binding.descriptorType  = RHI_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-        post_process_global_layout_input_attachment_binding.descriptorCount = 1;
-        post_process_global_layout_input_attachment_binding.stageFlags      = RHI_SHADER_STAGE_FRAGMENT_BIT;
+        RHIDescriptorSetLayoutBinding& post_process_global_layout_color_input_attachment_binding = post_process_global_layout_bindings[0];
+        post_process_global_layout_color_input_attachment_binding.binding  = 0;
+        post_process_global_layout_color_input_attachment_binding.descriptorType = RHI_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
+        post_process_global_layout_color_input_attachment_binding.descriptorCount = 1;
+        post_process_global_layout_color_input_attachment_binding.stageFlags      = RHI_SHADER_STAGE_FRAGMENT_BIT;
+
+        RHIDescriptorSetLayoutBinding& post_process_global_layout_depth_input_attachment_binding = post_process_global_layout_bindings[1];
+        post_process_global_layout_depth_input_attachment_binding.binding   = 1;
+        post_process_global_layout_depth_input_attachment_binding.descriptorType = RHI_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        post_process_global_layout_depth_input_attachment_binding.descriptorCount = 1;
+        post_process_global_layout_depth_input_attachment_binding.stageFlags      = RHI_SHADER_STAGE_FRAGMENT_BIT;
+
+        RHIDescriptorSetLayoutBinding& uniform_layout_binding = post_process_global_layout_bindings[2];
+        uniform_layout_binding.binding                         = 2;
+        uniform_layout_binding.descriptorType                  = RHI_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uniform_layout_binding.descriptorCount                 = 1;
+        uniform_layout_binding.stageFlags                      = RHI_SHADER_STAGE_FRAGMENT_BIT;
 
         RHIDescriptorSetLayoutCreateInfo post_process_global_layout_create_info;
         post_process_global_layout_create_info.sType = RHI_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -50,7 +104,7 @@ namespace Piccolo
         }
     }
 
-    void VignettePass::setupPipelines()
+    void ToonPass::setupPipelines()
     {
         m_render_pipelines.resize(1);
 
@@ -65,8 +119,8 @@ namespace Piccolo
             throw std::runtime_error("create post process pipeline layout");
         }
 
-        RHIShader* vert_shader_module = m_rhi->createShaderModule(VIGNETTE_VERT);
-        RHIShader* frag_shader_module = m_rhi->createShaderModule(VIGNETTE_FRAG);
+        RHIShader* vert_shader_module = m_rhi->createShaderModule(TOON_VERT);
+        RHIShader* frag_shader_module = m_rhi->createShaderModule(TOON_FRAG);
 
         RHIPipelineShaderStageCreateInfo vert_pipeline_shader_stage_create_info {};
         vert_pipeline_shader_stage_create_info.sType  = RHI_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -170,7 +224,7 @@ namespace Piccolo
         pipelineInfo.pDepthStencilState  = &depth_stencil_create_info;
         pipelineInfo.layout              = m_render_pipelines[0].layout;
         pipelineInfo.renderPass          = m_framebuffer.render_pass;
-        pipelineInfo.subpass             = _main_camera_subpass_vignette;
+        pipelineInfo.subpass             = _main_camera_subpass_toon;
         pipelineInfo.basePipelineHandle  = RHI_NULL_HANDLE;
         pipelineInfo.pDynamicState       = &dynamic_state_create_info;
 
@@ -183,7 +237,7 @@ namespace Piccolo
         m_rhi->destroyShaderModule(frag_shader_module);
     }
 
-    void VignettePass::setupDescriptorSet()
+    void ToonPass::setupDescriptorSet()
     {
         RHIDescriptorSetAllocateInfo post_process_global_descriptor_set_alloc_info;
         post_process_global_descriptor_set_alloc_info.sType          = RHI_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -198,14 +252,27 @@ namespace Piccolo
         }
     }
 
-    void VignettePass::updateAfterFramebufferRecreate(RHIImageView* input_attachment)
+    void ToonPass::updateAfterFramebufferRecreate(RHIImageView* input_attachment)
     {
+        //layout(input_attachment_index = 0, set = 0, binding = 0) uniform highp subpassInput in_color;
         RHIDescriptorImageInfo post_process_per_frame_input_attachment_info = {};
-        post_process_per_frame_input_attachment_info.sampler     = m_rhi->getOrCreateDefaultSampler(Default_Sampler_Nearest);
+        post_process_per_frame_input_attachment_info.sampler = m_rhi->getOrCreateDefaultSampler(Default_Sampler_Nearest);
         post_process_per_frame_input_attachment_info.imageView   = input_attachment;
         post_process_per_frame_input_attachment_info.imageLayout = RHI_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        RHIWriteDescriptorSet post_process_descriptor_writes_info[1];
+        //layout(set = 0, binding = 1) uniform sampler2D in_scene_depth;
+        RHIDescriptorImageInfo toon_scene_depth_image_info = {};
+        toon_scene_depth_image_info.sampler                = m_rhi->getOrCreateDefaultSampler(Default_Sampler_Nearest);
+        toon_scene_depth_image_info.imageView              = m_rhi->getDepthImageInfo().depth_image_view;
+        toon_scene_depth_image_info.imageLayout = RHI_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        //layout(set = 0, binding = 0) uniform UniformBufferObject
+        RHIDescriptorBufferInfo uniformbufferDescriptor = {};
+        uniformbufferDescriptor.buffer                  = m_compute_uniform_buffer;
+        uniformbufferDescriptor.offset                  = 0;
+        uniformbufferDescriptor.range                   = RHI_WHOLE_SIZE;
+
+        RHIWriteDescriptorSet post_process_descriptor_writes_info[3];
 
         RHIWriteDescriptorSet& post_process_descriptor_input_attachment_write_info =
             post_process_descriptor_writes_info[0];
@@ -218,6 +285,25 @@ namespace Piccolo
         post_process_descriptor_input_attachment_write_info.descriptorCount = 1;
         post_process_descriptor_input_attachment_write_info.pImageInfo = &post_process_per_frame_input_attachment_info;
 
+        RHIWriteDescriptorSet& post_process_descriptor_scene_depth_write_info = post_process_descriptor_writes_info[1];
+        post_process_descriptor_scene_depth_write_info.sType                  = RHI_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        post_process_descriptor_scene_depth_write_info.pNext                  = NULL;
+        post_process_descriptor_scene_depth_write_info.dstSet                 = m_descriptor_infos[0].descriptor_set;
+        post_process_descriptor_scene_depth_write_info.dstBinding             = 1;
+        post_process_descriptor_scene_depth_write_info.dstArrayElement        = 0;
+        post_process_descriptor_scene_depth_write_info.descriptorType = RHI_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        post_process_descriptor_scene_depth_write_info.descriptorCount = 1;
+        post_process_descriptor_scene_depth_write_info.pImageInfo      = &toon_scene_depth_image_info;
+
+        RHIWriteDescriptorSet& descriptorset = post_process_descriptor_writes_info[2];
+        descriptorset.sType                  = RHI_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorset.dstSet                 = m_descriptor_infos[0].descriptor_set;
+        descriptorset.dstBinding             = 2;
+        descriptorset.descriptorType         = RHI_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorset.descriptorCount        = 1;
+        descriptorset.pBufferInfo            = &uniformbufferDescriptor;
+
+
         m_rhi->updateDescriptorSets(sizeof(post_process_descriptor_writes_info) /
                                     sizeof(post_process_descriptor_writes_info[0]),
                                     post_process_descriptor_writes_info,
@@ -225,10 +311,10 @@ namespace Piccolo
                                     NULL);
     }
 
-    void VignettePass::draw()
+    void ToonPass::draw()
     {
         float color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-        m_rhi->pushEvent(m_rhi->getCurrentCommandBuffer(), "Vignette", color);
+        m_rhi->pushEvent(m_rhi->getCurrentCommandBuffer(), "Toon", color);
 
         m_rhi->cmdBindPipelinePFN(m_rhi->getCurrentCommandBuffer(), RHI_PIPELINE_BIND_POINT_GRAPHICS, m_render_pipelines[0].pipeline);
         m_rhi->cmdSetViewportPFN(m_rhi->getCurrentCommandBuffer(), 0, 1, m_rhi->getSwapchainInfo().viewport);

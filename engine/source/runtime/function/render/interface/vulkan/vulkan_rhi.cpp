@@ -2631,11 +2631,11 @@ namespace Piccolo
         pool_sizes[1].type            = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         pool_sizes[1].descriptorCount = 1 + 1 + 1 * m_max_vertex_blending_mesh_count;
         pool_sizes[2].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        pool_sizes[2].descriptorCount = 1 * m_max_material_count;
+        pool_sizes[2].descriptorCount = 1 * m_max_material_count + 1;
         pool_sizes[3].type            = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        pool_sizes[3].descriptorCount = 3 + 5 * m_max_material_count + 1 + 1 + 1; // ImGui_ImplVulkan_CreateDeviceObjects
+        pool_sizes[3].descriptorCount = 3 + 5 * m_max_material_count + 1 + 1; // ImGui_ImplVulkan_CreateDeviceObjects
         pool_sizes[4].type            = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
-        pool_sizes[4].descriptorCount = 4 + 1 + 1 + 2 + 1;
+        pool_sizes[4].descriptorCount = 4 + 1 + 1 + 2 + 1 + 2;
         pool_sizes[5].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
         pool_sizes[5].descriptorCount = 3;
         pool_sizes[6].type            = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -2700,7 +2700,7 @@ namespace Piccolo
                                 (VkFormat)m_depth_image_format,
                                 VK_IMAGE_TILING_OPTIMAL,
                                 VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT |
-                                VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                    VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
                                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                 ((VulkanImage*)m_depth_image)->getResource(),
                                 m_depth_image_memory,

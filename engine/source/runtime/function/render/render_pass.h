@@ -38,6 +38,7 @@ namespace Piccolo
         _main_camera_subpass_color_grading,
         _main_camera_subpass_vignette,
         _main_camera_subpass_fxaa,
+        _main_camera_subpass_toon,
         _main_camera_subpass_ui,
         _main_camera_subpass_combine_ui,
         _main_camera_subpass_count
