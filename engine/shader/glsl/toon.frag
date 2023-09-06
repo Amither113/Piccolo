@@ -18,6 +18,9 @@ layout(location = 0) out highp vec4 out_color;
 
 void main()
 {
+    const highp float _Scale = 4.0;
+    const highp float _DepthThreshold = 0.2;
+
     highp vec4 color       = subpassLoad(in_color).rgba;
     highp ivec2 screen_size = textureSize(in_scene_depth, 0);
 
@@ -25,8 +28,7 @@ void main()
     highp float py = (ubo.viewport.y + in_uv.y * ubo.viewport.w);
     highp vec2 uv = vec2(px / float(screen_size.x), py / float(screen_size.y));
 
-    //line extractions
-    const highp float _Scale = 4.0;
+    /////line extractions
     highp float halfScaleFloor = floor(_Scale * 0.5);
     highp float halfScaleCeil = ceil(_Scale * 0.5);
 
@@ -46,7 +48,9 @@ void main()
     highp float depthFiniteDifference1 = depth3 - depth2;
     highp float edgeDepth = sqrt(pow(depthFiniteDifference0, 2.0) + pow(depthFiniteDifference1, 2.0)) * 100.0;
 
-    out_color = vec4(edgeDepth, edgeDepth, edgeDepth, 1.0);
+    edgeDepth = edgeDepth > _DepthThreshold ? 1.0 : 0.0;
+
+    out_color = vec4(edgeDepth, edgeDepth, edgeDepth, 1.0) + color;
 
     //debug
     // highp float depth = texture(in_scene_depth, in_uv).r;

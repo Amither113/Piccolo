@@ -85,11 +85,17 @@ namespace Piccolo
         post_process_global_layout_depth_input_attachment_binding.descriptorCount = 1;
         post_process_global_layout_depth_input_attachment_binding.stageFlags      = RHI_SHADER_STAGE_FRAGMENT_BIT;
 
-        RHIDescriptorSetLayoutBinding& uniform_layout_binding = post_process_global_layout_bindings[2];
-        uniform_layout_binding.binding                         = 2;
-        uniform_layout_binding.descriptorType                  = RHI_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uniform_layout_binding.descriptorCount                 = 1;
-        uniform_layout_binding.stageFlags                      = RHI_SHADER_STAGE_FRAGMENT_BIT;
+        RHIDescriptorSetLayoutBinding& uniform_depth_layout_binding = post_process_global_layout_bindings[2];
+        uniform_depth_layout_binding.binding                        = 2;
+        uniform_depth_layout_binding.descriptorType                 = RHI_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uniform_depth_layout_binding.descriptorCount                = 1;
+        uniform_depth_layout_binding.stageFlags                     = RHI_SHADER_STAGE_FRAGMENT_BIT;
+
+        //RHIDescriptorSetLayoutBinding& uniform_normal_layout_binding = post_process_global_layout_bindings[3];
+        //uniform_normal_layout_binding.binding                                 = 3;
+        //uniform_normal_layout_binding.descriptorType                          = RHI_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        //uniform_normal_layout_binding.descriptorCount                         = 1;
+        //uniform_normal_layout_binding.stageFlags                              = RHI_SHADER_STAGE_FRAGMENT_BIT;
 
         RHIDescriptorSetLayoutCreateInfo post_process_global_layout_create_info;
         post_process_global_layout_create_info.sType = RHI_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -272,6 +278,12 @@ namespace Piccolo
         uniformbufferDescriptor.offset                  = 0;
         uniformbufferDescriptor.range                   = RHI_WHOLE_SIZE;
 
+        //layout(set = 0, binding = 3, rgba8) uniform readonly image2D in_normal;
+        //RHIDescriptorImageInfo gbuffer_normal_descriptor_image_info = {};
+        //gbuffer_normal_descriptor_image_info.sampler                = nullptr;
+        //gbuffer_normal_descriptor_image_info.imageView              = 
+        //gbuffer_normal_descriptor_image_info.imageLayout            = RHI_IMAGE_LAYOUT_GENERAL;
+
         RHIWriteDescriptorSet post_process_descriptor_writes_info[3];
 
         RHIWriteDescriptorSet& post_process_descriptor_input_attachment_write_info =
@@ -297,8 +309,10 @@ namespace Piccolo
 
         RHIWriteDescriptorSet& descriptorset = post_process_descriptor_writes_info[2];
         descriptorset.sType                  = RHI_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorset.pNext                  = NULL;
         descriptorset.dstSet                 = m_descriptor_infos[0].descriptor_set;
         descriptorset.dstBinding             = 2;
+        descriptorset.dstArrayElement        = 0;
         descriptorset.descriptorType         = RHI_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptorset.descriptorCount        = 1;
         descriptorset.pBufferInfo            = &uniformbufferDescriptor;
