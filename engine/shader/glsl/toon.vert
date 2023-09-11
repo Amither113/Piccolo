@@ -4,7 +4,8 @@
 
 #include "constants.h"
 
-layout(location=0) out vec2 out_uv;
+layout(location = 0) out vec2 out_uv;
+layout(location = 1) out vec3 out_viewSpaceDir;
 
 void main()
 {

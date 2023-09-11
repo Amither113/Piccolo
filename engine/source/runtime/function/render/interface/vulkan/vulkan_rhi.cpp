@@ -2639,7 +2639,7 @@ namespace Piccolo
         pool_sizes[5].type            = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
         pool_sizes[5].descriptorCount = 3;
         pool_sizes[6].type            = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        pool_sizes[6].descriptorCount = 1;
+        pool_sizes[6].descriptorCount = 1 + 1;
 
         VkDescriptorPoolCreateInfo pool_info {};
         pool_info.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;

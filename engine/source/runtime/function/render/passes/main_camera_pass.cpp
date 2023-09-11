@@ -69,7 +69,7 @@ namespace Piccolo
                                    m_framebuffer.attachments[_main_camera_pass_gbuffer_a].format,
                                    RHI_IMAGE_TILING_OPTIMAL,
                                    RHI_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | RHI_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                                   RHI_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                                       RHI_IMAGE_USAGE_TRANSFER_SRC_BIT | RHI_IMAGE_USAGE_STORAGE_BIT,//for toon use
                                    RHI_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                    m_framebuffer.attachments[_main_camera_pass_gbuffer_a].image,
                                    m_framebuffer.attachments[_main_camera_pass_gbuffer_a].mem,

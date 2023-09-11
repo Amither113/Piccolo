@@ -18,12 +18,13 @@ namespace Piccolo
 
         const ToonPassInitInfo* _init_info = static_cast<const ToonPassInitInfo*>(init_info);
         m_framebuffer.render_pass                  = _init_info->render_pass;
+        m_normal_image_view                = _init_info->normal_image_view;
 
         prepareUniformBuffer();
         setupDescriptorSetLayout();
         setupPipelines();
         setupDescriptorSet();
-        updateAfterFramebufferRecreate(_init_info->input_attachment);
+        updateAfterFramebufferRecreate(_init_info->input_attachment, m_normal_image_view);
     }
 
     void ToonPass::prepareUniformBuffer() 
@@ -71,7 +72,7 @@ namespace Piccolo
     {
         m_descriptor_infos.resize(1);
 
-        RHIDescriptorSetLayoutBinding post_process_global_layout_bindings[3] = {};
+        RHIDescriptorSetLayoutBinding post_process_global_layout_bindings[4] = {};
 
         RHIDescriptorSetLayoutBinding& post_process_global_layout_color_input_attachment_binding = post_process_global_layout_bindings[0];
         post_process_global_layout_color_input_attachment_binding.binding  = 0;
@@ -91,11 +92,11 @@ namespace Piccolo
         uniform_depth_layout_binding.descriptorCount                = 1;
         uniform_depth_layout_binding.stageFlags                     = RHI_SHADER_STAGE_FRAGMENT_BIT;
 
-        //RHIDescriptorSetLayoutBinding& uniform_normal_layout_binding = post_process_global_layout_bindings[3];
-        //uniform_normal_layout_binding.binding                                 = 3;
-        //uniform_normal_layout_binding.descriptorType                          = RHI_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-        //uniform_normal_layout_binding.descriptorCount                         = 1;
-        //uniform_normal_layout_binding.stageFlags                              = RHI_SHADER_STAGE_FRAGMENT_BIT;
+        RHIDescriptorSetLayoutBinding& uniform_normal_layout_binding = post_process_global_layout_bindings[3];
+        uniform_normal_layout_binding.binding                                 = 3;
+        uniform_normal_layout_binding.descriptorType                          = RHI_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        uniform_normal_layout_binding.descriptorCount                         = 1;
+        uniform_normal_layout_binding.stageFlags                              = RHI_SHADER_STAGE_FRAGMENT_BIT;
 
         RHIDescriptorSetLayoutCreateInfo post_process_global_layout_create_info;
         post_process_global_layout_create_info.sType = RHI_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -258,8 +259,25 @@ namespace Piccolo
         }
     }
 
-    void ToonPass::updateAfterFramebufferRecreate(RHIImageView* input_attachment)
+    void ToonPass::updateAfterFramebufferRecreate(RHIImageView* input_attachment, RHIImageView* normal_image_view)
     {
+        //m_rhi->createImageView(m_src_depth_image,
+        //                       m_rhi->getDepthImageInfo().depth_image_format,
+        //                       RHI_IMAGE_ASPECT_DEPTH_BIT,
+        //                       RHI_IMAGE_VIEW_TYPE_2D,
+        //                       1,
+        //                       1,
+        //                       m_src_depth_image_view);
+
+        //m_rhi->createImageView(m_src_normal_image,
+        //                       RHI_FORMAT_R8G8B8A8_UNORM,
+        //                       RHI_IMAGE_ASPECT_COLOR_BIT,
+        //                       RHI_IMAGE_VIEW_TYPE_2D,
+        //                       1,
+        //                       1,
+        //                       m_src_normal_image_view);
+
+        //////UpdateDescriptorSets
         //layout(input_attachment_index = 0, set = 0, binding = 0) uniform highp subpassInput in_color;
         RHIDescriptorImageInfo post_process_per_frame_input_attachment_info = {};
         post_process_per_frame_input_attachment_info.sampler = m_rhi->getOrCreateDefaultSampler(Default_Sampler_Nearest);
@@ -279,12 +297,12 @@ namespace Piccolo
         uniformbufferDescriptor.range                   = RHI_WHOLE_SIZE;
 
         //layout(set = 0, binding = 3, rgba8) uniform readonly image2D in_normal;
-        //RHIDescriptorImageInfo gbuffer_normal_descriptor_image_info = {};
-        //gbuffer_normal_descriptor_image_info.sampler                = nullptr;
-        //gbuffer_normal_descriptor_image_info.imageView              = 
-        //gbuffer_normal_descriptor_image_info.imageLayout            = RHI_IMAGE_LAYOUT_GENERAL;
+        RHIDescriptorImageInfo gbuffer_normal_descriptor_image_info = {};
+        gbuffer_normal_descriptor_image_info.sampler                = nullptr;
+        gbuffer_normal_descriptor_image_info.imageView              = normal_image_view;
+        gbuffer_normal_descriptor_image_info.imageLayout            = RHI_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        RHIWriteDescriptorSet post_process_descriptor_writes_info[3];
+        RHIWriteDescriptorSet post_process_descriptor_writes_info[4];
 
         RHIWriteDescriptorSet& post_process_descriptor_input_attachment_write_info =
             post_process_descriptor_writes_info[0];
@@ -307,15 +325,25 @@ namespace Piccolo
         post_process_descriptor_scene_depth_write_info.descriptorCount = 1;
         post_process_descriptor_scene_depth_write_info.pImageInfo      = &toon_scene_depth_image_info;
 
-        RHIWriteDescriptorSet& descriptorset = post_process_descriptor_writes_info[2];
-        descriptorset.sType                  = RHI_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorset.pNext                  = NULL;
-        descriptorset.dstSet                 = m_descriptor_infos[0].descriptor_set;
-        descriptorset.dstBinding             = 2;
-        descriptorset.dstArrayElement        = 0;
-        descriptorset.descriptorType         = RHI_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorset.descriptorCount        = 1;
-        descriptorset.pBufferInfo            = &uniformbufferDescriptor;
+        RHIWriteDescriptorSet& depth_descriptorset = post_process_descriptor_writes_info[2];
+        depth_descriptorset.sType                  = RHI_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        depth_descriptorset.pNext                  = NULL;
+        depth_descriptorset.dstSet                 = m_descriptor_infos[0].descriptor_set;
+        depth_descriptorset.dstBinding             = 2;
+        depth_descriptorset.dstArrayElement        = 0;
+        depth_descriptorset.descriptorType         = RHI_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        depth_descriptorset.descriptorCount        = 1;
+        depth_descriptorset.pBufferInfo            = &uniformbufferDescriptor;
+
+        RHIWriteDescriptorSet& normal_descriptorset = post_process_descriptor_writes_info[3];
+        normal_descriptorset.sType                  = RHI_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        normal_descriptorset.pNext                  = NULL;
+        normal_descriptorset.dstSet                 = m_descriptor_infos[0].descriptor_set;
+        normal_descriptorset.dstBinding             = 3;
+        normal_descriptorset.dstArrayElement        = 0;
+        normal_descriptorset.descriptorType         = RHI_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+        normal_descriptorset.descriptorCount        = 1;
+        normal_descriptorset.pImageInfo            = &gbuffer_normal_descriptor_image_info;
 
 
         m_rhi->updateDescriptorSets(sizeof(post_process_descriptor_writes_info) /
@@ -323,6 +351,12 @@ namespace Piccolo
                                     post_process_descriptor_writes_info,
                                     0,
                                     NULL);
+    }
+
+    void ToonPass::setDepthAndNormalImage(RHIImage* depth_image, RHIImage* normal_image) 
+    {
+        m_src_depth_image = depth_image;
+        m_src_normal_image = normal_image;
     }
 
     void ToonPass::draw()

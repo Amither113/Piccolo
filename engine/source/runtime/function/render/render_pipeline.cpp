@@ -105,6 +105,8 @@ namespace Piccolo
         toon_init_info.render_pass = _main_camera_pass->getRenderPass();
         toon_init_info.input_attachment =
             _main_camera_pass->getFramebufferImageViews()[_main_camera_pass_backup_buffer_even];
+        toon_init_info.normal_image_view = 
+            _main_camera_pass->getFramebufferImageViews()[_main_camera_pass_gbuffer_a];
         m_toon_pass->initialize(&toon_init_info);
 
         UIPassInitInfo ui_init_info;
@@ -258,7 +260,8 @@ namespace Piccolo
         vignette_pass.updateAfterFramebufferRecreate(
             main_camera_pass.getFramebufferImageViews()[_main_camera_pass_backup_buffer_odd]);
         toon_pass.updateAfterFramebufferRecreate(
-            main_camera_pass.getFramebufferImageViews()[_main_camera_pass_backup_buffer_even]);
+            main_camera_pass.getFramebufferImageViews()[_main_camera_pass_backup_buffer_even],
+            main_camera_pass.getFramebufferImageViews()[_main_camera_pass_gbuffer_a]);
         fxaa_pass.updateAfterFramebufferRecreate(
             main_camera_pass.getFramebufferImageViews()[_main_camera_pass_post_process_buffer_odd]);
         combine_ui_pass.updateAfterFramebufferRecreate(
